@@ -1,6 +1,7 @@
 from transformers import (
     AutoTokenizer, AutoModelForSequenceClassification,
-    TrainingArguments, Trainer, DataCollatorWithPadding
+    TrainingArguments, Trainer, DataCollatorWithPadding,
+    EarlyStoppingCallback
 )
 from datasets import Dataset
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
@@ -38,9 +39,9 @@ def train_and_evaluate(
     base_path="data/train_"
 ):
     # Start a fresh wandb run
-    run_name = f"baseline_all-MiniLM-L6-v2_{size}_{num_epochs}e"
+    run_name = f"all-MiniLM-L6-v2_{size}_{num_epochs}e"
     wandb.init(
-        project="sentiment",
+        project="baseline_sentiment_analysis",
         name=run_name,
         reinit=True
     )
@@ -78,7 +79,7 @@ def train_and_evaluate(
     train_ds.set_format(type="torch", columns=["input_ids","attention_mask","label"])
     val_ds.set_format(  type="torch", columns=["input_ids","attention_mask","label"])
 
-    # Model & Trainer
+    # Model & Trainer (with early stopping)
     model = AutoModelForSequenceClassification.from_pretrained(
         MODEL_NAME, num_labels=2
     )
@@ -89,6 +90,7 @@ def train_and_evaluate(
         eval_dataset=val_ds,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=4)]
     )
 
     # Train + Eval
