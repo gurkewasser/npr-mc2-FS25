@@ -39,9 +39,9 @@ def train_and_evaluate(
     base_path="data/train_"
 ):
     # Start a fresh wandb run
-    run_name = f"all-MiniLM-L6-v2_{size}_{num_epochs}e"
+    run_name = f"fine-tuning_{size}_{num_epochs}e"
     wandb.init(
-        project="baseline_sentiment_analysis",
+        project="npr_mc2-test",
         name=run_name,
         reinit=True
     )
