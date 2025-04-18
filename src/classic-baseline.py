@@ -1,3 +1,5 @@
+# === classical_baseline.py ===
+#!/usr/bin/env python3
 import pandas as pd
 import numpy as np
 import argparse
@@ -36,50 +38,58 @@ def train_and_evaluate(train_X, train_y, val_X, val_y):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Classical TF-IDF + Logistic Regression Baseline with W&B logging")
-    parser.add_argument('--train', default='data/train_100.parquet', help='Path to training parquet file')
-    parser.add_argument('--val',   default='data/validation.parquet', help='Path to validation parquet file')
-    parser.add_argument('--output_dir', default='results/classical', help='Directory to save models and metrics')
+    parser = argparse.ArgumentParser(description="Classical TF-IDF + Logistic Regression Baseline over multiple splits")
+    parser.add_argument('--sizes', nargs='+', type=int,
+                        default=[25,50,100,150,200,250,300],
+                        help='List of training split sizes')
+    parser.add_argument('--val', default='data/validation.parquet',
+                        help='Path to validation parquet file')
+    parser.add_argument('--output_dir', default='results/classical',
+                        help='Base directory to save models and metrics')
     args = parser.parse_args()
 
-    os.makedirs(args.output_dir, exist_ok=True)
+    for size in args.sizes:
+        train_path = f"data/train_{size}.parquet"
+        subdir = os.path.join(args.output_dir, str(size))
+        os.makedirs(subdir, exist_ok=True)
 
-    # initialize W&B
-    run_name = f"classical_{os.path.basename(args.train).split('.')[0]}"
-    wandb.init(
-        project="npr_mc2",
-        name=run_name,
-        config={
-            "train_data": args.train,
-            "val_data": args.val,
-            "vectorizer_max_features": 5000,
-            "vectorizer_ngram_range": (1,2),
-            "classifier": "LogisticRegression",
-            "max_iter": 1000
-        }
-    )
+        # Initialize W&B for this split
+        run_name = f"classical_{size}"
+        wandb.init(
+            project="npr_mc2",
+            name=run_name,
+            reinit=True,
+            config={
+                "train_split": train_path,
+                "val_split": args.val,
+                "vectorizer_max_features": 5000,
+                "vectorizer_ngram_range": (1,2),
+                "classifier": "LogisticRegression",
+                "max_iter": 1000
+            }
+        )
 
-    train_X, train_y, val_X, val_y = load_data(args.train, args.val)
-    metrics, vectorizer, clf = train_and_evaluate(train_X, train_y, val_X, val_y)
+        # Load and run
+        train_X, train_y, val_X, val_y = load_data(train_path, args.val)
+        metrics, vectorizer, clf = train_and_evaluate(train_X, train_y, val_X, val_y)
 
-    # log metrics to W&B
-    wandb.log(metrics)
+        # Log and save
+        wandb.log(metrics)
+        metrics_file = os.path.join(subdir, 'classical_results.json')
+        with open(metrics_file, 'w') as f:
+            json.dump(metrics, f, indent=2)
+        joblib.dump(vectorizer, os.path.join(subdir, 'tfidf_vectorizer.joblib'))
+        joblib.dump(clf, os.path.join(subdir, 'logreg_model.joblib'))
 
-    # Save results locally
-    metrics_path = os.path.join(args.output_dir, 'classical_results.json')
-    with open(metrics_path, 'w') as f:
-        json.dump(metrics, f, indent=2)
-    joblib.dump(vectorizer, os.path.join(args.output_dir, 'tfidf_vectorizer.joblib'))
-    joblib.dump(clf, os.path.join(args.output_dir, 'logreg_model.joblib'))
+        # Save to W&B
+        wandb.save(metrics_file)
+        wandb.save(os.path.join(subdir, 'tfidf_vectorizer.joblib'))
+        wandb.save(os.path.join(subdir, 'logreg_model.joblib'))
+        wandb.finish()
 
-    # save artifacts to W&B
-    wandb.save(metrics_path)
-    wandb.save(os.path.join(args.output_dir, 'tfidf_vectorizer.joblib'))
-    wandb.save(os.path.join(args.output_dir, 'logreg_model.joblib'))
+        print(f"Finished classical baseline for size={size}. Metrics in {metrics_file}")
 
-    wandb.finish()
-
-    print(f"Classical baseline metrics saved to {metrics_path}")
+    print("All classical baseline splits completed.")
 
 
 if __name__ == '__main__':
