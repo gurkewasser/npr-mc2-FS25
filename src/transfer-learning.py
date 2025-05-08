@@ -13,6 +13,8 @@ from datasets import Dataset
 
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
+all_metrics = []
+
 
 def load_data(train_path, val_path):
     df_train = pd.read_parquet(train_path)
@@ -98,13 +100,16 @@ def train_for_size(size, epochs, batch_size, val_path, output_dir):
         eval_dataset=val_ds,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=4)]
     )
     # Train + Eval
     trainer.train()
     metrics = trainer.evaluate()
 
     # Save metrics
+    metrics.update({ 'size': size, 'epochs': epochs })
+    all_metrics.append(metrics)
+
     df = pd.DataFrame([metrics])
     metrics_file = os.path.join(output_dir, f"transfer_metrics_{size}_{epochs}e.csv")
     df.to_csv(metrics_file, index=False)
@@ -138,6 +143,11 @@ def main():
         for ep in args.epochs:
             train_for_size(size, ep, args.batch_size,
                            args.val, args.output_dir)
+    
+    pd.DataFrame(all_metrics).to_csv(
+        os.path.join(args.output_dir, "transfer_summary.csv"),
+        index=False
+    )
 
 
 if __name__ == '__main__':
