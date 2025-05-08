@@ -16,6 +16,7 @@ MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
+
 def log(msg):
     print(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
 
@@ -77,7 +78,7 @@ def train_and_evaluate(
     train_ds = train_ds.map(tokenize_function, batched=True)
     val_ds   = val_ds.map(tokenize_function, batched=True)
     train_ds.set_format(type="torch", columns=["input_ids","attention_mask","label"])
-    val_ds.set_format(  type="torch", columns=["input_ids","attention_mask","label"])
+    val_ds.set_format(type="torch", columns=["input_ids","attention_mask","label"])
 
     # Model & Trainer (with early stopping)
     model = AutoModelForSequenceClassification.from_pretrained(
@@ -107,10 +108,10 @@ def train_and_evaluate(
     os.makedirs(out_dir, exist_ok=True)
     metrics_file = os.path.join(
         out_dir,
-        f"baseline_metrics_{size}_{num_epochs}e.csv"
+        f"fine_tuning_metrics_{size}_{num_epochs}e.csv"
     )
     pd.DataFrame([metrics]).to_csv(metrics_file, index=False)
-    log(f"✅ Metrics saved to {metrics_file}\n")
+    log(f"Metrics saved to {metrics_file}")
 
     return metrics
 
@@ -118,7 +119,15 @@ def train_and_evaluate(
 if __name__ == "__main__":
     sizes = [25, 50, 100, 150, 200, 250, 300]
     epoch_settings = [3, 10, 20]
+    all_metrics = []
 
     for size in sizes:
         for num_epochs in epoch_settings:
-            train_and_evaluate(size, num_epochs)
+            m = train_and_evaluate(size, num_epochs)
+            all_metrics.append(m)
+
+    # Write a master summary CSV
+    summary_df = pd.DataFrame(all_metrics)
+    summary_path = os.path.join("results", "fine_tuning_summary.csv")
+    summary_df.to_csv(summary_path, index=False)
+    log(f"Summary metrics saved to {summary_path}")
