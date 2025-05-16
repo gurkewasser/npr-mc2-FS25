@@ -1,2 +1,0 @@
-eval_loss,eval_accuracy,eval_precision,eval_recall,eval_f1,eval_runtime,eval_samples_per_second,eval_steps_per_second,epoch,train_size,num_epochs
-0.3906840980052948,0.88,0.9,0.855,0.8769230769230769,0.6243,640.76,80.095,8.0,200,10

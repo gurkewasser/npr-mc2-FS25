@@ -10,12 +10,12 @@ import numpy as np
 import datetime
 import os
 import wandb
+import glob
 
 # ---------- Global Config ----------
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
-
 
 def log(msg):
     print(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
@@ -34,23 +34,22 @@ def compute_metrics(p):
 
 # ---------- Main Training Function ----------
 def train_and_evaluate(
-    size,
-    num_epochs,
+    train_path,
     val_path="data/validation.parquet",
-    base_path="data/train_"
+    output_dir="results/fine-tuning",
+    num_epochs=50
 ):
-    # Start a fresh wandb run
+    size = int(os.path.splitext(os.path.basename(train_path))[0].split("_")[-1])
     run_name = f"fine-tuning_{size}_{num_epochs}e"
     wandb.init(
         project="npr_mc2-test",
         name=run_name,
         reinit=True
     )
-    log(f"Training with {size} samples for {num_epochs} epochs...")
+    log(f"Training with {size} samples for up to {num_epochs} epochs...")
 
-    # TrainingArguments
     training_args = TrainingArguments(
-        output_dir=f"./results/{size}_{num_epochs}e",
+        output_dir=os.path.join(output_dir, f"{size}_{num_epochs}e"),
         run_name=run_name,
         report_to="wandb",
         eval_strategy="epoch",
@@ -63,11 +62,11 @@ def train_and_evaluate(
         load_best_model_at_end=True,
         metric_for_best_model="accuracy",
         save_total_limit=1,
-        logging_dir=f'./logs/{size}_{num_epochs}e',
+        logging_dir=os.path.join(output_dir, f'logs_{size}_{num_epochs}e'),
     )
 
     # Load & preprocess data
-    df_train = pd.read_parquet(f"{base_path}{size}.parquet")
+    df_train = pd.read_parquet(train_path)
     df_val   = pd.read_parquet(val_path)
     df_train["text"] = df_train["title"] + " " + df_train["content"]
     df_val["text"]   = df_val["title"]   + " " + df_val["content"]
@@ -91,43 +90,40 @@ def train_and_evaluate(
         eval_dataset=val_ds,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=4)]
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=6)]
     )
 
     # Train + Eval
     trainer.train()
     metrics = trainer.evaluate()
-    metrics["train_size"]  = size
-    metrics["num_epochs"]  = num_epochs
-
-    # Finish the wandb run
-    wandb.finish()
+    metrics["size"]  = size
+    metrics["epochs"]  = num_epochs
 
     # Save this run’s metrics to its own CSV
-    out_dir = "results"
-    os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     metrics_file = os.path.join(
-        out_dir,
+        output_dir,
         f"fine_tuning_metrics_{size}_{num_epochs}e.csv"
     )
     pd.DataFrame([metrics]).to_csv(metrics_file, index=False)
+    wandb.log(metrics)
+    wandb.save(metrics_file)
     log(f"Metrics saved to {metrics_file}")
 
+    wandb.finish()
     return metrics
 
-
 if __name__ == "__main__":
-    sizes = [25, 50, 100, 150, 200, 250, 300]
-    epoch_settings = [3, 10, 20]
-    all_metrics = []
+    # Find all train_*.parquet files in data/
+    train_files = sorted(glob.glob("data/train_*.parquet"))
+    val_path = "data/validation_x2.parquet"
+    output_dir = "results/fine-tuning"
+    num_epochs = 50  # Big epoch, will early stop
 
-    for size in sizes:
-        for num_epochs in epoch_settings:
-            m = train_and_evaluate(size, num_epochs)
-            all_metrics.append(m)
-
-    # Write a master summary CSV
-    summary_df = pd.DataFrame(all_metrics)
-    summary_path = os.path.join("results", "fine_tuning_summary.csv")
-    summary_df.to_csv(summary_path, index=False)
-    log(f"Summary metrics saved to {summary_path}")
+    for train_path in train_files:
+        train_and_evaluate(
+            train_path=train_path,
+            val_path=val_path,
+            output_dir=output_dir,
+            num_epochs=num_epochs
+        )

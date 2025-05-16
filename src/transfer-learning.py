@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
-import argparse
 import os
+import glob
 import wandb
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from transformers import (
@@ -13,9 +13,6 @@ from datasets import Dataset
 
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
-all_metrics = []
-
-
 def load_data(train_path, val_path):
     df_train = pd.read_parquet(train_path)
     df_val   = pd.read_parquet(val_path)
@@ -23,10 +20,8 @@ def load_data(train_path, val_path):
     df_val['text']   = df_val['title']   + ' ' + df_val['content']
     return df_train[['text','label']], df_val[['text','label']]
 
-
 def tokenize(batch):
     return tokenizer(batch['text'], truncation=True, padding='max_length')
-
 
 def compute_metrics(p):
     preds = np.argmax(p.predictions, axis=1)
@@ -35,15 +30,10 @@ def compute_metrics(p):
     acc = accuracy_score(p.label_ids, preds)
     return {'accuracy': acc, 'precision': precision, 'recall': recall, 'f1': f1}
 
-
-def train_for_size(size, epochs, batch_size, val_path, output_dir):
-    # Paths
-    train_path = f"data/train_{size}.parquet"
+def train_and_evaluate(train_path, val_path, size, epochs=50, batch_size=8):
     run_name = f"transfer_{size}_{epochs}e"
-
-    # W&B init
     wandb.init(
-        project='npr_mc2',
+        project='npr_mc2_new',
         name=run_name,
         reinit=True,
         config={
@@ -54,12 +44,10 @@ def train_for_size(size, epochs, batch_size, val_path, output_dir):
         }
     )
 
-    # Tokenizer & data collator
     global tokenizer
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     data_collator = DataCollatorWithPadding(tokenizer)
 
-    # Data
     train_df, val_df = load_data(train_path, val_path)
     train_ds = Dataset.from_pandas(train_df)
     val_ds   = Dataset.from_pandas(val_df)
@@ -68,17 +56,14 @@ def train_for_size(size, epochs, batch_size, val_path, output_dir):
     train_ds.set_format(type='torch', columns=['input_ids','attention_mask','label'])
     val_ds.set_format(type='torch', columns=['input_ids','attention_mask','label'])
 
-    # Model
     model = AutoModelForSequenceClassification.from_pretrained(
         MODEL_NAME, num_labels=2
     )
-    # Freeze backbone
     for param in model.base_model.parameters():
         param.requires_grad = False
 
-    # TrainingArguments
     args = TrainingArguments(
-        output_dir=os.path.join(output_dir, f"{size}_{epochs}e"),
+        output_dir=os.path.join("results/transfer", f"{size}_{epochs}e"),
         num_train_epochs=epochs,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
@@ -92,7 +77,6 @@ def train_for_size(size, epochs, batch_size, val_path, output_dir):
         run_name=run_name
     )
 
-    # Trainer
     trainer = Trainer(
         model=model,
         args=args,
@@ -100,55 +84,40 @@ def train_for_size(size, epochs, batch_size, val_path, output_dir):
         eval_dataset=val_ds,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=4)]
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=6)]
     )
-    # Train + Eval
+
     trainer.train()
     metrics = trainer.evaluate()
-
-    # Save metrics
-    metrics.update({ 'size': size, 'epochs': epochs })
-    all_metrics.append(metrics)
+    metrics.update({'size': size, 'epochs': epochs})
 
     df = pd.DataFrame([metrics])
-    metrics_file = os.path.join(output_dir, f"transfer_metrics_{size}_{epochs}e.csv")
+    metrics_file = os.path.join("results/transfer", f"transfer_metrics_{size}_{epochs}e.csv")
     df.to_csv(metrics_file, index=False)
     wandb.log(metrics)
     wandb.save(metrics_file)
     wandb.finish()
 
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Transfer Learning over multiple train sizes"
-    )
-    parser.add_argument('--sizes', nargs='+', type=int,
-                        default=[25,50,100,150,200,250,300],
-                        help='List of training sizes')
-    parser.add_argument('--epochs', nargs='+', type=int,
-                        default=[3,10,20],
-                        help='List of epoch settings')
-    parser.add_argument('--batch_size', '-b', type=int,
-                        default=8,
-                        help='Batch size per device')
-    parser.add_argument('--val', default='data/validation.parquet',
-                        help='Validation data parquet')
-    parser.add_argument('--output_dir', '-o', default='results/transfer',
-                        help='Output directory')
-    args = parser.parse_args()
-
-    os.makedirs(args.output_dir, exist_ok=True)
-
-    for size in args.sizes:
-        for ep in args.epochs:
-            train_for_size(size, ep, args.batch_size,
-                           args.val, args.output_dir)
-    
-    pd.DataFrame(all_metrics).to_csv(
-        os.path.join(args.output_dir, "transfer_summary.csv"),
-        index=False
-    )
-
-
 if __name__ == '__main__':
-    main()
+    # Find all train_*.parquet files in data/
+    train_files = sorted(glob.glob("data/train_*.parquet"))
+    val_path = "data/validation_x2.parquet"
+    os.makedirs("results/transfer", exist_ok=True)
+    epochs = 50
+    batch_size = 8
+
+    for train_path in train_files:
+        # Extract size from filename, e.g., train_100.parquet -> 100
+        base = os.path.basename(train_path)
+        try:
+            size = int(base.split("_")[1].split(".")[0])
+        except Exception:
+            print(f"Could not parse size from {base}, skipping.")
+            continue
+        train_and_evaluate(
+            train_path=train_path,
+            val_path=val_path,
+            size=size,
+            epochs=epochs,
+            batch_size=batch_size
+        )
