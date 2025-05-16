@@ -5,3 +5,5 @@ __pycache__/
 *.pyo
 *.pyd
 results/
+data/archiv/data-archiv/
+data/archiv/data-archiv_300/
