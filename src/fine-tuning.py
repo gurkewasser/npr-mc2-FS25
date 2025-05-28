@@ -42,7 +42,7 @@ def train_and_evaluate(
     size = int(os.path.splitext(os.path.basename(train_path))[0].split("_")[-1])
     run_name = f"fine-tuning_{size}_{num_epochs}e"
     wandb.init(
-        project="npr_mc2-test",
+        project="npr_mc2-seed-test",
         name=run_name,
         reinit=True
     )
@@ -116,7 +116,7 @@ def train_and_evaluate(
 if __name__ == "__main__":
     # Find all train_*.parquet files in data/
     train_files = sorted(glob.glob("data/train_*.parquet"))
-    val_path = "data/validation_x2.parquet"
+    val_path = "data/validation.parquet"
     output_dir = "results/fine-tuning"
     num_epochs = 50  # Big epoch, will early stop
 
