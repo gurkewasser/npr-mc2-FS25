@@ -33,7 +33,7 @@ def compute_metrics(p):
 def train_and_evaluate(train_path, val_path, size, epochs=50, batch_size=8):
     run_name = f"transfer_{size}_{epochs}e"
     wandb.init(
-        project='npr_mc2_new',
+        project='npr_mc2-test-seed',
         name=run_name,
         reinit=True,
         config={
@@ -100,8 +100,8 @@ def train_and_evaluate(train_path, val_path, size, epochs=50, batch_size=8):
 
 if __name__ == '__main__':
     # Find all train_*.parquet files in data/
-    train_files = sorted(glob.glob("data/train_*.parquet"))
-    val_path = "data/validation_x2.parquet"
+    train_files = sorted(glob.glob("data/train_*.parquet")) 
+    val_path = "data/validation.parquet"
     os.makedirs("results/transfer", exist_ok=True)
     epochs = 50
     batch_size = 8
