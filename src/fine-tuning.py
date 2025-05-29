@@ -11,6 +11,9 @@ import datetime
 import os
 import wandb
 import glob
+from utils import set_seed
+
+set_seed()
 
 # ---------- Global Config ----------
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
@@ -42,7 +45,7 @@ def train_and_evaluate(
     size = int(os.path.splitext(os.path.basename(train_path))[0].split("_")[-1])
     run_name = f"fine-tuning_{size}_{num_epochs}e"
     wandb.init(
-        project="npr_mc2-seed-test",
+        project="npr_mc2-main",
         name=run_name,
         reinit=True
     )
@@ -103,7 +106,7 @@ def train_and_evaluate(
     os.makedirs(output_dir, exist_ok=True)
     metrics_file = os.path.join(
         output_dir,
-        f"fine_tuning_metrics_{size}_{num_epochs}e.csv"
+        f"fine_tuning_metrics_{size}.csv"
     )
     pd.DataFrame([metrics]).to_csv(metrics_file, index=False)
     wandb.log(metrics)
@@ -114,11 +117,10 @@ def train_and_evaluate(
     return metrics
 
 if __name__ == "__main__":
-    # Find all train_*.parquet files in data/
     train_files = sorted(glob.glob("data/train_*.parquet"))
     val_path = "data/validation.parquet"
     output_dir = "results/fine-tuning"
-    num_epochs = 50  # Big epoch, will early stop
+    num_epochs = 50
 
     for train_path in train_files:
         train_and_evaluate(
