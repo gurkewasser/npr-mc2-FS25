@@ -5,6 +5,9 @@ import os
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+from utils import set_seed
+
+set_seed()
 
 def load_data(train_path, val_path):
     df_train = pd.read_parquet(train_path)
