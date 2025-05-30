@@ -24,7 +24,7 @@ def load_data(train_path, val_path):
     return df_train[['text','label']], df_val[['text','label']]
 
 def tokenize(batch):
-    return tokenizer(batch['text'], truncation=True, padding='max_length')
+    return tokenizer(batch['text'], truncation=True, padding=True)
 
 def compute_metrics(p):
     preds = np.argmax(p.predictions, axis=1)
@@ -36,7 +36,7 @@ def compute_metrics(p):
 def train_and_evaluate(train_path, val_path, size, epochs=50, batch_size=8):
     run_name = f"transfer_{size}_{epochs}e"
     wandb.init(
-        project='npr_mc2-main',
+        project='npr_mc2-main-2',
         name=run_name,
         reinit=True,
         config={
@@ -74,7 +74,7 @@ def train_and_evaluate(train_path, val_path, size, epochs=50, batch_size=8):
         save_strategy='epoch',
         logging_strategy='epoch',
         load_best_model_at_end=True,
-        metric_for_best_model='accuracy',
+        metric_for_best_model='f1',
         save_total_limit=1,
         report_to='wandb',
         run_name=run_name
@@ -95,7 +95,7 @@ def train_and_evaluate(train_path, val_path, size, epochs=50, batch_size=8):
     metrics.update({'size': size, 'epochs': epochs})
 
     df = pd.DataFrame([metrics])
-    metrics_file = os.path.join("results/transfer", f"transfer_metrics_{size}.csv")
+    metrics_file = os.path.join("results/transfer", f"transfer_metrics_{size}_3.csv")
     df.to_csv(metrics_file, index=False)
     wandb.log(metrics)
     wandb.save(metrics_file)
@@ -106,7 +106,7 @@ if __name__ == '__main__':
     val_path = "data/validation.parquet"
     os.makedirs("results/transfer", exist_ok=True)
     epochs = 50
-    batch_size = 8
+    batch_size = 32
 
     for train_path in train_files:
         base = os.path.basename(train_path)
