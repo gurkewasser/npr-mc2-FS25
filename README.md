@@ -94,7 +94,7 @@ In this repository, I implement the FHNW “NPR Mini-Challenge 2: Sentiment Anal
 
 ---
 
-## Usage
+## Information
 
 ### Exploratory Data Analysis
 
