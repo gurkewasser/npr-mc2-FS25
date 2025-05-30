@@ -1,0 +1,2 @@
+accuracy,precision,recall,f1,train_size
+0.67375,0.6247755834829444,0.87,0.7272727272727273,100

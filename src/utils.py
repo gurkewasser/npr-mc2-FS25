@@ -30,7 +30,7 @@ def find_max_batch_size(model, texts, start=4, max_possible=1024):
 
 def set_seed(seed: int = 2277):
     os.environ['PYTHONHASHSEED'] = str(seed)
-    os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'  # Or ':16:8' if out of memory
+    os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
     random.seed(seed)
     np.random.seed(seed)
