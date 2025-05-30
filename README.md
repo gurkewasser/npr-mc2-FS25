@@ -89,7 +89,7 @@ In this repository, I implement the FHNW “NPR Mini-Challenge 2: Sentiment Anal
 
 4. **Prepare data**
 
-   * I place any additional `.parquet` files into the `data/` directory.
+   * I placed any additional `.parquet` files into the `data/` directory.
    * The provided splits (`train_*`, `validation.parquet`, `unlabeled.parquet`) are ready to use.
 
 ---
@@ -122,7 +122,7 @@ For each training `classic`, `transfer`, `fine-tuning` is a separate python scri
 
 ## Dependencies
 
-See `requirements.txt` for a full list. Key packages I use include:
+See `requirements.txt` for a full list. Key packages I used include:
 
 * transformers
 * sentence-transformers
@@ -137,4 +137,4 @@ See `requirements.txt` for a full list. Key packages I use include:
 
 ## AI Usage
 
-I document details on AI and ChatGPT usage in `USE-OF-AI.md`.
+I documented details on AI and ChatGPT usage in `USE-OF-AI.md`.
